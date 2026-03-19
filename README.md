@@ -97,3 +97,4 @@ Distributed under the MIT License. See `LICENSE.txt` for more information.
 
 ## Discord
 Join the Discord server [here](https://discord.gg/uhXKHbVKHZ)
+
