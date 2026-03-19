@@ -7,10 +7,7 @@ import { AsyncParser } from "@json2csv/node";
 import { Builder } from "xml2js";
 
 // XLSX
-import XLSX from "xlsx";
-
-// Helpers
-import { flattenObject } from "@/lib/helpers";
+import * as XLSX from "xlsx";
 
 // Types
 import { ExportTypes } from "@/types";
@@ -59,31 +56,46 @@ export async function exportInvoiceService(req: NextRequest) {
                             "attachment; filename=invoice.xml",
                     },
                 });
-            // case ExportTypes.XLSX:
-            //     const flattenedData = flattenObject(body);
-
-            //     // Create a new worksheet and add the data
-            //     const worksheet = XLSX.utils.json_to_sheet([flattenedData]);
-            //     const workbook = XLSX.utils.book_new();
-            //     XLSX.utils.book_append_sheet(
-            //         workbook,
-            //         worksheet,
-            //         "invoice-worksheet"
-            //     );
-            //     // Generate the XLSX file as a buffer
-            //     const buffer = XLSX.write(workbook, {
-            //         bookType: "xlsx",
-            //         type: "buffer",
-            //     });
-
-            //     return new NextResponse(buffer, {
-            //         headers: {
-            //             "Content-Type":
-            //                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            //             "Content-Disposition":
-            //                 "attachment; filename=invoice.xlsx",
-            //         },
-            //     });
+            case ExportTypes.XLSX: {
+                const { sender, receiver, details } = body;
+                const workbook = XLSX.utils.book_new();
+                const headerRow = {
+                    invoiceNumber: details?.invoiceNumber ?? "",
+                    invoiceDate: details?.invoiceDate ?? "",
+                    dueDate: details?.dueDate ?? "",
+                    currency: details?.currency ?? "",
+                    senderName: sender?.name ?? "",
+                    receiverName: receiver?.name ?? "",
+                    subTotal: details?.subTotal ?? 0,
+                    totalAmount: details?.totalAmount ?? 0,
+                };
+                const invoiceSheet = XLSX.utils.json_to_sheet([headerRow]);
+                XLSX.utils.book_append_sheet(workbook, invoiceSheet, "Invoice");
+                const itemsSheet = XLSX.utils.json_to_sheet(
+                    details?.items ?? []
+                );
+                XLSX.utils.book_append_sheet(workbook, itemsSheet, "Items");
+                const buffer = XLSX.write(workbook, {
+                    bookType: "xlsx",
+                    type: "buffer",
+                });
+                return new NextResponse(buffer, {
+                    headers: {
+                        "Content-Type":
+                            "text/csv",
+                        "Content-Disposition":
+                            "attachment; filename=invoice.csv",
+                    },
+                });
+            }
+            default:
+                return new NextResponse(
+                    JSON.stringify({ error: "Unsupported export format" }),
+                    {
+                        status: 400,
+                        headers: { "Content-Type": "application/json" },
+                    }
+                );
         }
     } catch (error) {
         console.error(error);
