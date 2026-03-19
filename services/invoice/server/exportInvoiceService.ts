@@ -7,13 +7,10 @@ import { AsyncParser } from "@json2csv/node";
 import { Builder } from "xml2js";
 
 // XLSX
-import XLSX from "xlsx";
-
-// Helpers
-import { flattenObject } from "@/lib/helpers";
+import * as XLSX from "xlsx";
 
 // Types
-import { ExportTypes } from "@/types";
+import { ExportTypes, ItemType } from "@/types";
 
 /**
  * Export an invoice in selected format.
@@ -59,31 +56,52 @@ export async function exportInvoiceService(req: NextRequest) {
                             "attachment; filename=invoice.xml",
                     },
                 });
-            // case ExportTypes.XLSX:
-            //     const flattenedData = flattenObject(body);
-
-            //     // Create a new worksheet and add the data
-            //     const worksheet = XLSX.utils.json_to_sheet([flattenedData]);
-            //     const workbook = XLSX.utils.book_new();
-            //     XLSX.utils.book_append_sheet(
-            //         workbook,
-            //         worksheet,
-            //         "invoice-worksheet"
-            //     );
-            //     // Generate the XLSX file as a buffer
-            //     const buffer = XLSX.write(workbook, {
-            //         bookType: "xlsx",
-            //         type: "buffer",
-            //     });
-
-            //     return new NextResponse(buffer, {
-            //         headers: {
-            //             "Content-Type":
-            //                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            //             "Content-Disposition":
-            //                 "attachment; filename=invoice.xlsx",
-            //         },
-            //     });
+            case ExportTypes.XLSX: {
+                const rows = (body.details?.items ?? []).map((item: ItemType) => ({
+                    InvoiceNumber: body.details.invoiceNumber,
+                    InvoiceDate: body.details.invoiceDate,
+                    DueDate: body.details.dueDate,
+                    Sender: body.sender?.name ?? "",
+                    Receiver: body.receiver?.name ?? "",
+                    ItemName: item.name,
+                    Description: item.description ?? "",
+                    Quantity: item.quantity,
+                    UnitPrice: item.unitPrice,
+                    Total: item.total,
+                    Currency: body.details?.currency ?? "",
+                    SubTotal: body.details?.subTotal ?? "",
+                    TotalAmount: body.details?.totalAmount ?? "",
+                }));
+                const worksheet = XLSX.utils.json_to_sheet(rows);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(
+                    workbook,
+                    worksheet,
+                    "invoice-worksheet"
+                );
+                const buffer = XLSX.write(workbook, {
+                    bookType: "xlsx",
+                    type: "buffer",
+                });
+                return new NextResponse(buffer, {
+                    headers: {
+                        "Content-Type":
+                            "text/csv",
+                        "Content-Disposition":
+                            "attachment; filename=invoice.csv",
+                    },
+                });
+            }
+            default:
+                return new NextResponse(
+                    JSON.stringify({
+                        error: "Unsupported or missing export format",
+                    }),
+                    {
+                        status: 400,
+                        headers: { "Content-Type": "application/json" },
+                    }
+                );
         }
     } catch (error) {
         console.error(error);
