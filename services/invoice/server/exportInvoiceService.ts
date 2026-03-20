@@ -6,14 +6,21 @@ import { AsyncParser } from "@json2csv/node";
 // XML2JS
 import { Builder } from "xml2js";
 
-// XLSX
-import XLSX from "xlsx";
+// XLSX (no default export in ESM/Next bundler)
+import * as XLSX from "xlsx";
 
 // Helpers
 import { flattenObject } from "@/lib/helpers";
 
 // Types
 import { ExportTypes } from "@/types";
+
+const SUPPORTED_EXPORT_FORMATS = new Set<string>([
+    ExportTypes.JSON,
+    ExportTypes.CSV,
+    ExportTypes.XML,
+    ExportTypes.XLSX,
+]);
 
 /**
  * Export an invoice in selected format.
@@ -24,6 +31,13 @@ import { ExportTypes } from "@/types";
 export async function exportInvoiceService(req: NextRequest) {
     const body = await req.json();
     const format = req.nextUrl.searchParams.get("format");
+
+    if (!format || !SUPPORTED_EXPORT_FORMATS.has(format)) {
+        return NextResponse.json(
+            { error: "Unsupported export format" },
+            { status: 400 }
+        );
+    }
 
     try {
         switch (format) {
@@ -59,31 +73,59 @@ export async function exportInvoiceService(req: NextRequest) {
                             "attachment; filename=invoice.xml",
                     },
                 });
-            // case ExportTypes.XLSX:
-            //     const flattenedData = flattenObject(body);
+            case ExportTypes.XLSX: {
+                const flat = flattenObject(
+                    body as Record<string, unknown>
+                );
+                const summaryRow: Record<
+                    string,
+                    string | number | boolean
+                > = {};
+                for (const key of Object.keys(flat)) {
+                    const v = flat[key];
+                    if (v === null || v === undefined) {
+                        summaryRow[key] = "";
+                    } else if (typeof v === "object") {
+                        summaryRow[key] = JSON.stringify(v);
+                    } else {
+                        summaryRow[key] = v as string | number | boolean;
+                    }
+                }
+                const worksheet = XLSX.utils.json_to_sheet([summaryRow]);
+                const workbook = XLSX.utils.book_new();
+                XLSX.utils.book_append_sheet(workbook, worksheet, "Summary");
 
-            //     // Create a new worksheet and add the data
-            //     const worksheet = XLSX.utils.json_to_sheet([flattenedData]);
-            //     const workbook = XLSX.utils.book_new();
-            //     XLSX.utils.book_append_sheet(
-            //         workbook,
-            //         worksheet,
-            //         "invoice-worksheet"
-            //     );
-            //     // Generate the XLSX file as a buffer
-            //     const buffer = XLSX.write(workbook, {
-            //         bookType: "xlsx",
-            //         type: "buffer",
-            //     });
+                const items = (
+                    body as {
+                        details?: { items?: unknown };
+                    }
+                ).details?.items;
+                if (Array.isArray(items) && items.length > 0) {
+                    const itemsSheet = XLSX.utils.json_to_sheet(
+                        items as Record<string, unknown>[]
+                    );
+                    XLSX.utils.book_append_sheet(
+                        workbook,
+                        itemsSheet,
+                        "Items"
+                    );
+                }
 
-            //     return new NextResponse(buffer, {
-            //         headers: {
-            //             "Content-Type":
-            //                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            //             "Content-Disposition":
-            //                 "attachment; filename=invoice.xlsx",
-            //         },
-            //     });
+                const buffer = XLSX.write(workbook, {
+                    bookType: "xlsx",
+                    type: "buffer",
+                });
+
+                return new NextResponse(buffer, {
+                    status: 200,
+                    headers: {
+                        "Content-Type":
+                            "text/csv",
+                        "Content-Disposition":
+                            "attachment; filename=invoice.csv",
+                    },
+                });
+            }
         }
     } catch (error) {
         console.error(error);
