@@ -7,7 +7,7 @@ import { AsyncParser } from "@json2csv/node";
 import { Builder } from "xml2js";
 
 // XLSX
-import XLSX from "xlsx";
+import * as XLSX from "xlsx";
 
 // Helpers
 import { flattenObject } from "@/lib/helpers";
