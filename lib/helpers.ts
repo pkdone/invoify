@@ -133,7 +133,7 @@ const flattenObject = <T>(
                 parentKey + key + "_"
             );
             for (const subKey in flattened) {
-                result[parentKey + subKey] = flattened[subKey];
+                result[subKey] = flattened[subKey];
             }
         } else {
             result[parentKey + key] = obj[key];
