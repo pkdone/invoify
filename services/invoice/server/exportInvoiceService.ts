@@ -59,31 +59,48 @@ export async function exportInvoiceService(req: NextRequest) {
                             "attachment; filename=invoice.xml",
                     },
                 });
-            // case ExportTypes.XLSX:
-            //     const flattenedData = flattenObject(body);
+            case ExportTypes.XLSX:
+                const workbook = XLSX.utils.book_new();
 
-            //     // Create a new worksheet and add the data
-            //     const worksheet = XLSX.utils.json_to_sheet([flattenedData]);
-            //     const workbook = XLSX.utils.book_new();
-            //     XLSX.utils.book_append_sheet(
-            //         workbook,
-            //         worksheet,
-            //         "invoice-worksheet"
-            //     );
-            //     // Generate the XLSX file as a buffer
-            //     const buffer = XLSX.write(workbook, {
-            //         bookType: "xlsx",
-            //         type: "buffer",
-            //     });
+                // Extract line items separately
+                const { details, ...invoiceWithoutDetails } = body;
+                const { items, ...detailsWithoutItems } = details || {};
 
-            //     return new NextResponse(buffer, {
-            //         headers: {
-            //             "Content-Type":
-            //                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            //             "Content-Disposition":
-            //                 "attachment; filename=invoice.xlsx",
-            //         },
-            //     });
+                // Sheet 1: Invoice header info (flattened)
+                const headerData = flattenObject({
+                    ...invoiceWithoutDetails,
+                    details: detailsWithoutItems,
+                });
+                const headerSheet = XLSX.utils.json_to_sheet([headerData]);
+                XLSX.utils.book_append_sheet(workbook, headerSheet, "Invoice");
+
+                // Sheet 2: Line items (if present)
+                if (Array.isArray(items) && items.length > 0) {
+                    const itemsSheet = XLSX.utils.json_to_sheet(items);
+                    XLSX.utils.book_append_sheet(workbook, itemsSheet, "Items");
+                }
+
+                const buffer = XLSX.write(workbook, {
+                    bookType: "xlsx",
+                    type: "buffer",
+                });
+
+                return new NextResponse(buffer, {
+                    headers: {
+                        "Content-Type":
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                        "Content-Disposition":
+                            "attachment; filename=invoice.xlsx",
+                    },
+                });
+            default:
+                return new NextResponse(
+                    JSON.stringify({ error: `Unsupported export format: ${format}` }),
+                    {
+                        status: 400,
+                        headers: { "Content-Type": "application/json" },
+                    }
+                );
         }
     } catch (error) {
         console.error(error);
