@@ -120,9 +120,9 @@ export async function exportInvoiceService(req: NextRequest) {
                     status: 200,
                     headers: {
                         "Content-Type":
-                            "text/csv",
+                            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         "Content-Disposition":
-                            "attachment; filename=invoice.csv",
+                            "attachment; filename=invoice.xlsx",
                     },
                 });
             }
