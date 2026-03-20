@@ -23,6 +23,14 @@ import { DATE_OPTIONS } from "@/lib/variables";
 // Types
 import { InvoiceType } from "@/types";
 
+/** Saved JSON may have ISO date strings before `updateFields` normalizes to Date for the form. */
+type InvoiceWithLooseDates = Omit<InvoiceType, "details"> & {
+    details: Omit<InvoiceType["details"], "invoiceDate" | "dueDate"> & {
+        invoiceDate: InvoiceType["details"]["invoiceDate"] | Date;
+        dueDate: InvoiceType["details"]["dueDate"] | Date;
+    };
+};
+
 type SavedInvoicesListProps = {
     setModalState: React.Dispatch<React.SetStateAction<boolean>>;
 };
@@ -32,15 +40,15 @@ const SavedInvoicesList = ({ setModalState }: SavedInvoicesListProps) => {
 
     const { reset } = useFormContext<InvoiceType>();
 
-    // TODO: Remove "any" from the function below
-    // Update fields when selected invoice is changed.
-    // ? Reason: The fields don't go through validation when invoice loads
-    const updateFields = (selected: any) => {
-        // Next 2 lines are so that when invoice loads,
-        // the dates won't be in the wrong format
-        // ? Selected cannot be of type InvoiceType because of these 2 variables
-        selected.details.dueDate = new Date(selected.details.dueDate);
-        selected.details.invoiceDate = new Date(selected.details.invoiceDate);
+    // Update fields when selected invoice is changed (saved data may use string dates from JSON).
+    const updateFields = (selected: InvoiceWithLooseDates) => {
+        // Normalize dates when loading from storage so the form receives Date objects.
+        selected.details.dueDate = new Date(
+            selected.details.dueDate as string | Date
+        );
+        selected.details.invoiceDate = new Date(
+            selected.details.invoiceDate as string | Date
+        );
 
         selected.details.invoiceLogo = "";
         selected.details.signature = {
@@ -69,7 +77,7 @@ const SavedInvoicesList = ({ setModalState }: SavedInvoicesListProps) => {
      */
     const load = (selectedInvoice: InvoiceType) => {
         if (selectedInvoice) {
-            updateFields(selectedInvoice);
+            updateFields(selectedInvoice as InvoiceWithLooseDates);
             reset(selectedInvoice);
             transformDates(selectedInvoice);
 
@@ -160,7 +168,7 @@ const SavedInvoicesList = ({ setModalState }: SavedInvoicesListProps) => {
                     </Card>
                 ))}
 
-                {savedInvoices.length == 0 && (
+                {savedInvoices.length === 0 && (
                     <div>
                         <p>No saved invoices</p>
                     </div>

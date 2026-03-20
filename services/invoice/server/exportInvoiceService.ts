@@ -6,14 +6,17 @@ import { AsyncParser } from "@json2csv/node";
 // XML2JS
 import { Builder } from "xml2js";
 
-// XLSX
-import XLSX from "xlsx";
-
-// Helpers
-import { flattenObject } from "@/lib/helpers";
+// Schemas
+import { InvoiceSchema } from "@/lib/schemas";
 
 // Types
 import { ExportTypes } from "@/types";
+
+const SUPPORTED_EXPORT_FORMATS: ReadonlySet<string> = new Set([
+    ExportTypes.JSON,
+    ExportTypes.CSV,
+    ExportTypes.XML,
+]);
 
 /**
  * Export an invoice in selected format.
@@ -22,14 +25,47 @@ import { ExportTypes } from "@/types";
  * @returns {NextResponse} A response object containing the exported data in the requested format.
  */
 export async function exportInvoiceService(req: NextRequest) {
-    const body = await req.json();
     const format = req.nextUrl.searchParams.get("format");
+
+    if (!format || !SUPPORTED_EXPORT_FORMATS.has(format)) {
+        return new NextResponse(
+            JSON.stringify({ error: "Unsupported or missing export format" }),
+            {
+                status: 400,
+                headers: { "Content-Type": "application/json" },
+            }
+        );
+    }
+
+    let parsed;
+    try {
+        parsed = InvoiceSchema.safeParse(await req.json());
+    } catch {
+        return new NextResponse(
+            JSON.stringify({ error: "Invalid JSON body" }),
+            {
+                status: 400,
+                headers: { "Content-Type": "application/json" },
+            }
+        );
+    }
+
+    if (!parsed.success) {
+        return new NextResponse(
+            JSON.stringify({ error: "Invalid invoice data" }),
+            {
+                status: 400,
+                headers: { "Content-Type": "application/json" },
+            }
+        );
+    }
+
+    const body = parsed.data;
 
     try {
         switch (format) {
             case ExportTypes.JSON:
-                const jsonData = JSON.stringify(body);
-                return new NextResponse(jsonData, {
+                return new NextResponse(JSON.stringify(body), {
                     headers: {
                         "Content-Type": "application/json",
                         "Content-Disposition":
@@ -37,8 +73,7 @@ export async function exportInvoiceService(req: NextRequest) {
                     },
                     status: 200,
                 });
-            case ExportTypes.CSV:
-                //? Can pass specific fields to async parser. Empty = All
+            case ExportTypes.CSV: {
                 const parser = new AsyncParser();
                 const csv = await parser.parse(body).promise();
                 return new NextResponse(csv, {
@@ -48,8 +83,8 @@ export async function exportInvoiceService(req: NextRequest) {
                             "attachment; filename=invoice.csv",
                     },
                 });
-            case ExportTypes.XML:
-                // Convert JSON to XML
+            }
+            case ExportTypes.XML: {
                 const builder = new Builder();
                 const xml = builder.buildObject(body);
                 return new NextResponse(xml, {
@@ -59,38 +94,25 @@ export async function exportInvoiceService(req: NextRequest) {
                             "attachment; filename=invoice.xml",
                     },
                 });
-            // case ExportTypes.XLSX:
-            //     const flattenedData = flattenObject(body);
-
-            //     // Create a new worksheet and add the data
-            //     const worksheet = XLSX.utils.json_to_sheet([flattenedData]);
-            //     const workbook = XLSX.utils.book_new();
-            //     XLSX.utils.book_append_sheet(
-            //         workbook,
-            //         worksheet,
-            //         "invoice-worksheet"
-            //     );
-            //     // Generate the XLSX file as a buffer
-            //     const buffer = XLSX.write(workbook, {
-            //         bookType: "xlsx",
-            //         type: "buffer",
-            //     });
-
-            //     return new NextResponse(buffer, {
-            //         headers: {
-            //             "Content-Type":
-            //                 "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            //             "Content-Disposition":
-            //                 "attachment; filename=invoice.xlsx",
-            //         },
-            //     });
+            }
+            default:
+                return new NextResponse(
+                    JSON.stringify({ error: "Unsupported export format" }),
+                    {
+                        status: 400,
+                        headers: { "Content-Type": "application/json" },
+                    }
+                );
         }
     } catch (error) {
-        console.error(error);
+        console.error("Export error:", error);
 
-        // Return an error response
-        return new Response(`Error exporting: \n${error}`, {
-            status: 500,
-        });
+        return new NextResponse(
+            JSON.stringify({ error: "Failed to export invoice" }),
+            {
+                status: 500,
+                headers: { "Content-Type": "application/json" },
+            }
+        );
     }
 }

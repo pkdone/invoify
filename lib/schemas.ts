@@ -41,9 +41,9 @@ const fieldValidators = {
             message: "Must be between 1 and 50 characters",
         }),
 
-    // Dates
+    // Dates — coerce so JSON bodies (ISO strings) and Date instances both validate
     date: z
-        .date()
+        .coerce.date()
         .transform((date) =>
             new Date(date).toLocaleDateString("en-US", DATE_OPTIONS)
         ),
