@@ -23,7 +23,24 @@ export const exportInvoice = async (
             "Content-Type": "application/json",
         },
     })
-        .then((res) => res.blob())
+        .then(async (res) => {
+            if (!res.ok) {
+                let errorMessage = "Failed to export invoice";
+
+                try {
+                    const errorData = await res.json();
+                    if (errorData?.error) {
+                        errorMessage = errorData.error;
+                    }
+                } catch {
+                    // Fallback to generic message when response is not JSON.
+                }
+
+                throw new Error(errorMessage);
+            }
+
+            return res.blob();
+        })
         .then((blob) => {
             const url = window.URL.createObjectURL(blob);
             const a = document.createElement("a");

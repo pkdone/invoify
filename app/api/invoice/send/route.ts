@@ -27,9 +27,7 @@ export async function POST(req: NextRequest) {
 
         const message =
             err instanceof Error ? err.message : "Failed to send email";
-        const isConfigError =
-            message.includes("Email service not configured") ||
-            message.includes("administrator");
+        const isConfigError = message.includes("Email service not configured");
 
         return new NextResponse(
             isConfigError
