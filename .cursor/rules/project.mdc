@@ -1,0 +1,7 @@
+---
+description: Always-on project instructions
+alwaysApply: true
+---
+
+When you need to import from the "xlsx" package, be aware that the xlsx package doesn't have a default export - the import needs to be `import * as XLSX from "xlsx"`.
+
