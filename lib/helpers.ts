@@ -135,6 +135,8 @@ const flattenObject = <T>(
             for (const subKey in flattened) {
                 result[parentKey + subKey] = flattened[subKey];
             }
+        } else if (Array.isArray(obj[key])) {
+            result[parentKey + key] = JSON.stringify(obj[key]) as T;
         } else {
             result[parentKey + key] = obj[key];
         }
